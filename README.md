@@ -199,6 +199,26 @@ dotnet test --filter "Category=Integration"              # Concurrency, Migratio
 * למשתמש נדרשת הרשאת `CREATEDB` (למשתמש `postgres` היא קיימת).
 * אפשר להשתמש בשרת אחר עם משתנה הסביבה `LEVBAKEHILA_TEST_POSTGRES` (Connection String), שגובר על ה־User Secrets.
 
+## פריסה ל־Render (Docker)
+
+ה־`Dockerfile` שבשורש הריפו בונה את LevBakehila.API יחד עם Core, Data ו־Service ב־.NET 8 (ללא פרויקט הבדיקות).
+
+* **Web Service:** Runtime `Docker`, Dockerfile Path `./Dockerfile`, Docker Build Context `.`, Health Check Path `/health`.
+* **פורט:** ה־image מאזין לפורט 10000 (`ASPNETCORE_HTTP_PORTS=10000`), ברירת המחדל של Render. אם Render מגדיר `PORT`, השרת מאזין ל־`0.0.0.0:$PORT`.
+* **Migrations:** רצות אוטומטית בעליית השרת. אם בסיס הנתונים עדיין עולה, יש עד 5 ניסיונות. Seed שנכשל נרשם בלוג ולא מפיל את השרת.
+* **HTTPS:** Render מסיים את ה־HTTPS ומעביר `X-Forwarded-Proto`. השרת מכבד את הכותרת, כך שאין הפניה חוזרת.
+* **Swagger:** כבוי ב־Production. אפשר להפעיל אותו במכוון עם `Swagger__Enabled=true`.
+* **לוגים:** נכתבים ל־stdout ומוצגים בלשונית Logs ב־Render.
+
+משתני סביבה (הערכים מוזנים ב־Render בלבד, ולא נשמרים בקוד):
+
+| משתנה | תוכן |
+|---|---|
+| `ConnectionStrings__DefaultConnection` | `Host=...;Port=5432;Database=...;Username=...;Password=...;SSL Mode=Require` (או במקומו `DATABASE_URL` בפורמט ה־URL ש־Render מציג) |
+| `Jwt__Key` | מחרוזת אקראית של 32 תווים לפחות |
+| `Seed__AdminPassword`, `Seed__VolunteerPassword` | סיסמאות משתמשי הדמו (8 תווים לפחות) |
+| `Cors__AllowedOrigins__0` | כתובת ה־React ב־Render, למשל `https://<client>.onrender.com` (ללא `/` בסוף) |
+
 ## משתמשי דמו (לסביבת הדגמה מקומית בלבד)
 
 המשתמשים נוצרים ב־Seed בעלייה הראשונה של השרת. הסיסמה של כל אחד היא הסיסמה שבחרתם בסעיף 1, ב־User Secrets:

@@ -2,17 +2,18 @@ using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
+using LevBakehila.API.Configuration;
 using LevBakehila.API.Json;
 using LevBakehila.API.Middleware;
 using LevBakehila.Core.Interfaces;
 using LevBakehila.Core.Settings;
 using LevBakehila.Data;
 using LevBakehila.Data.Repositories;
-using LevBakehila.Data.Seed;
 using LevBakehila.Service.Mapping;
 using LevBakehila.Service.Security;
 using LevBakehila.Service.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -30,10 +31,18 @@ try
     builder.Logging.ClearProviders();
     builder.Host.UseNLog();
 
-    // ---------- Configuration (secrets come from User Secrets) ----------
-    string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    // ---------- Hosting: Render passes the port in PORT; listen on all interfaces ----------
+    // Without PORT (local run) launchSettings / ASPNETCORE_HTTP_PORTS decide, as before.
+    if (DeploymentConfiguration.GetPort(builder.Configuration) is int port)
+    {
+        builder.WebHost.UseSetting(WebHostDefaults.HttpPortsKey, string.Empty);
+        builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+    }
+
+    // ---------- Configuration (secrets come from User Secrets locally, environment variables on Render) ----------
+    string connectionString = DeploymentConfiguration.ResolveConnectionString(builder.Configuration)
         ?? throw new InvalidOperationException(
-            "Missing configuration 'ConnectionStrings:DefaultConnection'. Set it with: dotnet user-secrets set " +
+            "Missing configuration 'ConnectionStrings:DefaultConnection' (or DATABASE_URL). Set it with: dotnet user-secrets set " +
             "\"ConnectionStrings:DefaultConnection\" \"Host=localhost;Port=5432;Database=LevBakehilaDb;Username=postgres;Password=<password>\" --project LevBakehila.API");
 
     var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>() ?? new JwtSettings();
@@ -115,12 +124,25 @@ try
     builder.Services.AddAuthorization();
 
     // ---------- CORS for the React client ----------
-    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+    // Only the listed origins - on Render add the client's URL with Cors__AllowedOrigins__0
+    var allowedOrigins = DeploymentConfiguration.GetAllowedOrigins(builder.Configuration);
     builder.Services.AddCors(options => options.AddPolicy("ClientPolicy", policy =>
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .WithExposedHeaders(CorrelationIdMiddleware.HeaderName)));
+
+    // ---------- Reverse proxy (Render terminates HTTPS and forwards plain HTTP) ----------
+    // X-Forwarded-Proto tells the app the original request was HTTPS, so HTTPS redirection does not loop.
+    // Render's proxy addresses are not fixed, so the known-proxy lists are cleared; the container is reachable only through it.
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+
+    builder.Services.AddHealthChecks();
 
     // ---------- Swagger with JWT "Authorize" button ----------
     builder.Services.AddEndpointsApiExplorer();
@@ -158,25 +180,16 @@ try
     var app = builder.Build();
 
     // ---------- Database: apply migrations + seed demo data (idempotent) ----------
-    using (var scope = app.Services.CreateScope())
-    {
-        var services = scope.ServiceProvider;
-        var dbContext = services.GetRequiredService<AppDbContext>();
-        await dbContext.Database.MigrateAsync();
-
-        var seedSettings = builder.Configuration.GetSection(SeedSettings.SectionName).Get<SeedSettings>() ?? new SeedSettings();
-        await DbSeeder.SeedAsync(
-            dbContext,
-            services.GetRequiredService<IPasswordHasher>(),
-            seedSettings,
-            services.GetRequiredService<ILogger<Program>>());
-    }
+    await DatabaseInitializer.InitializeAsync(app.Services, app.Configuration, app.Services.GetRequiredService<ILogger<Program>>());
 
     // ---------- HTTP pipeline (order matters) ----------
+    app.UseForwardedHeaders();                          // 0. real scheme / client IP from Render's proxy
     app.UseMiddleware<ExceptionHandlingMiddleware>();   // 1. catches errors from everything below
-    app.UseMiddleware<CorrelationIdMiddleware>();       // 2. CorrelationId + request logging
+    app.UseHealthChecks("/health");                     // 2. Render health check - before request logging and HTTPS redirect
+    app.UseMiddleware<CorrelationIdMiddleware>();       // 3. CorrelationId + request logging
 
-    if (app.Environment.IsDevelopment())
+    // Swagger stays off in Production unless Swagger:Enabled=true is set explicitly
+    if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
     {
         app.UseSwagger();
         app.UseSwaggerUI();

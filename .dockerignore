@@ -1,0 +1,26 @@
+# Only the four projects the API needs are copied into the image
+**/bin/
+**/obj/
+**/logs/
+**/*.user
+**/*.suo
+**/TestResults/
+.vs/
+.git/
+.github/
+.claude/
+LevBakehila/
+LevBakehila.Tests/
+LevBakehila.Client/
+**/node_modules/
+
+# Secrets never go into the image
+**/secrets.json
+**/appsettings.*.local.json
+**/.env
+**/.env.*
+
+# Documentation and local working documents
+*.md
+Dockerfile
+.dockerignore
