@@ -14,7 +14,7 @@
 | מיפוי | AutoMapper 14.0.0 עם Profiles (ראו "AutoMapper: הבחירה והסיכון") |
 | נוספים | Swagger (עם JWT), NLog, Dependency Injection |
 | בדיקות | xUnit, Moq, בדיקות אינטגרציה מול PostgreSQL אמיתי |
-| לקוח | React 18 + Vite, ב־Repository נפרד (`LevBakehila.Client`) |
+| לקוח | React 18 + Vite, ב־Repository נפרד: [LevBakehila-Client](https://github.com/Tzivi-Cohen/LevBakehila-Client) |
 
 ## מבנה השכבות
 
@@ -80,12 +80,27 @@ LevBakehila.Tests     Unit (xUnit + Moq) + Integration (PostgreSQL)
 
 ## התקנה והרצה מקומית
 
-מבנה התיקיות: שני Repositories זה לצד זה.
+### 0. הורדת הקוד
+
+המערכת מורכבת משני Repositories נפרדים:
+
+| חלק | Repository |
+|---|---|
+| שרת (ASP.NET Core, הקובץ הזה) | https://github.com/Tzivi-Cohen/LevBakehila |
+| לקוח (React) | https://github.com/Tzivi-Cohen/LevBakehila-Client |
+
+משבטים את שניהם לאותה תיקיית אב (כל תיקייה מתאימה), כך שיישבו זה לצד זה:
+```powershell
+git clone https://github.com/Tzivi-Cohen/LevBakehila.git
+git clone https://github.com/Tzivi-Cohen/LevBakehila-Client.git
 ```
-Downloads\
-  LevBakehila\          השרת (Solution, הקובץ הזה)
-  LevBakehila.Client\   לקוח React
+המבנה שמתקבל:
 ```
+<תיקיית אב>\
+  LevBakehila\          השרת: Solution, ה־README הזה
+  LevBakehila-Client\   לקוח React
+```
+כל הפקודות של השרת בהמשך מורצות מתוך התיקייה `LevBakehila`.
 
 ### 1. הגדרת סודות (User Secrets), פעם אחת
 
@@ -140,21 +155,38 @@ Migrations קיימות:
 ```
 
 ### 3. הרצת השרת
-```bash
+
+בפעם הראשונה בלבד, מאשרים את תעודת הפיתוח של localhost. בלעדיה הדפדפן חוסם את `https://localhost:7257`:
+```powershell
+dotnet dev-certs https --trust
+```
+מריצים מתיקיית `LevBakehila`, ומשאירים את החלון פתוח כל עוד עובדים:
+```powershell
 dotnet run --project LevBakehila.API --launch-profile https
 ```
-Swagger: https://localhost:7257/swagger
-1. מריצים `POST /api/auth/login` עם אחד ממשתמשי הדמו ומעתיקים את ה־`token`.
-2. לוחצים **Authorize** ומדביקים את ה־token, בלי המילה Bearer.
+* בעלייה הראשונה נוצר `LevBakehilaDb`, ה־Migrations מוחלות ונוצרים נתוני הדמו. אין צורך בפעולה ידנית בבסיס הנתונים.
+* השרת מאזין ל־`https://localhost:7257` (וגם ל־`http://localhost:5003`).
+* Swagger: https://localhost:7257/swagger
+  1. מריצים `POST /api/auth/login` עם אחד ממשתמשי הדמו ומעתיקים את ה־`token`.
+  2. לוחצים **Authorize** ומדביקים את ה־token, בלי המילה Bearer.
 
 ### 4. הרצת React
-```bash
-cd ..\LevBakehila.Client
+
+בחלון PowerShell **נוסף**, כשהשרת מסעיף 3 עדיין רץ. מתיקיית `LevBakehila`:
+```powershell
+cd ..\LevBakehila-Client
 npm install
 npm run dev
 ```
-הלקוח רץ על http://localhost:5173 ופונה ל־`https://localhost:7257`. אפשר לשנות את הכתובת עם `VITE_API_URL` בקובץ `.env` (דוגמה ב־`.env.example`).
-אם הדפדפן חוסם את התעודה של localhost, מריצים פעם אחת `dotnet dev-certs https --trust`.
+פותחים בדפדפן את http://localhost:5173 ומתחברים עם אחד ממשתמשי הדמו.
+
+* **הפורט 5173 חייב להיות פנוי.** הלקוח לא עובר לפורט אחר (`strictPort`), והשרת מתיר CORS רק ל־`http://localhost:5173`. אם הפורט תפוס, סוגרים את התהליך שמשתמש בו, למשל הרצה קודמת של `npm run dev`.
+* **כתובת השרת:** הלקוח פונה כברירת מחדל ל־`https://localhost:7257`. כדי לשנות אותה, יוצרים קובץ `.env` מהדוגמה, ומעדכנים בו את `VITE_API_URL`:
+  ```powershell
+  Copy-Item .env.example .env
+  ```
+  הקובץ `.env` מוחרג מ־Git.
+* **הודעה "השרת אינו זמין":** בודקים שהשרת מסעיף 3 רץ, ושאושרה תעודת הפיתוח (`dotnet dev-certs https --trust`).
 
 ### 5. הרצת הבדיקות
 ```bash
