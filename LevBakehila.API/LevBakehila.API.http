@@ -1,0 +1,43 @@
+@baseUrl = https://localhost:7257
+# Example values - replace them before sending. Never commit a real password here.
+@email = volunteer@example.com
+@password = <choose-a-password-of-8+-characters>
+# Paste the token returned by the login request here
+@token = PASTE_TOKEN_HERE
+
+### Register a new volunteer
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "מתנדבת לדוגמה",
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "neighborhood": "רמות"
+}
+
+### Login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Available activities, filtered and sorted, page 1
+GET {{baseUrl}}/api/activities?onlyAvailable=true&neighborhood=רמות&sortBy=startTime&sortDirection=asc&pageNumber=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### Register to activity 1
+POST {{baseUrl}}/api/registrations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "activityId": 1
+}
+
+### My registrations
+GET {{baseUrl}}/api/registrations/mine
+Authorization: Bearer {{token}}

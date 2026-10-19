@@ -1,0 +1,43 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.dll
+*.pdb
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# Tests
+TestResults/
+*.trx
+coverage*/
+
+# Logs
+logs/
+*.log
+
+# Secrets and environment files
+secrets.json
+appsettings.*.local.json
+.env
+.env.*
+!.env.example
+
+# The React client is a separate Git repository
+LevBakehila.Client/
+node_modules/
+
+# Local Claude Code settings
+.claude/settings.local.json
+
+# Local working documents - kept on this computer only, never uploaded
+PLAN.md
+PROGRESS.md
+SUBMISSION-AUDIT.md
+TEACHER-REQUIREMENTS.md
+CLAUDE.md
